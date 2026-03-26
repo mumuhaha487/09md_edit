@@ -36,75 +36,59 @@ export function safeMarkdownFileName(inputName) {
   return normalized.endsWith('.md') ? normalized : `${normalized}.md`;
 }
 
-function toBase64Utf8(input) {
-  const bytes = new TextEncoder().encode(input);
-  let binary = '';
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const chunk = bytes.subarray(i, i + chunkSize);
-    binary += String.fromCharCode(...chunk);
-  }
-  return btoa(binary);
-}
-
-export async function uploadMarkdownToGitHub({
+export async function uploadMarkdownToCnb({
+  cnbApiBase,
   repo,
   token,
-  branch,
   filePath,
-  content,
-  committerName,
-  committerEmail
+  content
 }) {
-  const apiBase = 'https://api.github.com';
+  const bodyBytes = new TextEncoder().encode(content);
   const headers = {
     Authorization: `Bearer ${token}`,
-    Accept: 'application/vnd.github+json',
-    'Content-Type': 'application/json',
-    'User-Agent': 'markdown-sync-cloudflare'
+    'Content-Type': 'application/json'
   };
 
-  const contentUrl = `${apiBase}/repos/${repo}/contents/${encodeURIComponent(filePath).replace(/%2F/g, '/')}`;
-  let sha = undefined;
-  const currentResp = await fetch(`${contentUrl}?ref=${encodeURIComponent(branch)}`, {
-    method: 'GET',
-    headers
-  });
-  if (currentResp.ok) {
-    const currentData = await currentResp.json();
-    sha = currentData.sha;
-  } else if (currentResp.status !== 404) {
-    const t = await currentResp.text();
-    throw new Error(`读取仓库文件失败: ${t}`);
-  }
-
-  const body = {
-    message: `sync markdown: ${filePath}`,
-    content: toBase64Utf8(content),
-    branch,
-    committer: {
-      name: committerName,
-      email: committerEmail
-    }
-  };
-  if (sha) {
-    body.sha = sha;
-  }
-
-  const putResp = await fetch(contentUrl, {
-    method: 'PUT',
+  const initResp = await fetch(`${cnbApiBase.replace(/\/+$/, '')}/${repo}/-/upload/files`, {
+    method: 'POST',
     headers,
-    body: JSON.stringify(body)
+    body: JSON.stringify({
+      name: filePath,
+      size: bodyBytes.byteLength,
+      ext: {
+        type: 'markdown'
+      }
+    })
+  });
+
+  if (!initResp.ok) {
+    const t = await initResp.text();
+    throw new Error(`初始化上传失败: ${t}`);
+  }
+
+  const initData = await initResp.json();
+  const uploadUrl = initData?.upload_url;
+  if (!uploadUrl) {
+    throw new Error('未获取到上传地址');
+  }
+
+  const putResp = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'text/markdown; charset=utf-8'
+    },
+    body: bodyBytes
   });
 
   if (!putResp.ok) {
     const t = await putResp.text();
-    throw new Error(`写入仓库失败: ${t}`);
+    throw new Error(`流式上传失败: ${t}`);
   }
 
+  const path = initData?.assets?.path || '';
+  const url = path ? (path.startsWith('http') ? path : `https://cnb.cool${path}`) : uploadUrl;
   return {
-    url: `https://github.com/${repo}/blob/${branch}/${filePath}`,
-    path: filePath,
-    branch
+    url,
+    path
   };
 }

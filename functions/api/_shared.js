@@ -325,3 +325,5 @@ export async function uploadMarkdownToCnb({
     }
   };
 }
+
+export const uploadMarkdownToCnbRepo = uploadMarkdownToCnb;

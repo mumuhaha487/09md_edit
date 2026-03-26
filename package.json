@@ -6,7 +6,7 @@
     "start": "node server.js",
     "build": "node -e \"console.log('pages static build ready')\"",
     "pages:dev": "npx wrangler pages dev public",
-    "pages:deploy": "npx wrangler pages deploy public",
+    "pages:deploy": "npx wrangler pages deploy public --functions ./functions",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

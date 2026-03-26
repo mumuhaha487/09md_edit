@@ -40,6 +40,6 @@ export const onRequestPost = async ({ request, env }) => {
       path: result.path
     });
   } catch (error) {
-    return json({ error: 'Git 上传 Markdown 失败', details: error.message }, { status: 500 });
+    return json({ error: 'CNB 上传 Markdown 失败', details: error.message }, { status: 500 });
   }
 };

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>一个可能很好用的在线编辑器</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- 引入 marked 用于 markdown 渲染 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- 引入 github-markdown-css 用于规范渲染 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.1/github-markdown-light.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Zhi+Mang+Xing&family=ZCOOL+KuaiLe&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1 class="blur-text-animation">一个可能很好用的在线编辑器</h1>
+            <p class="blur-text-animation delay-1">复制图片直接粘贴，即可自动上传并插入 Markdown 链接喵~ 🌸</p>
+        </header>
+
+        <div class="main-wrapper">
+            <!-- 侧边栏：博客配置 -->
+            <aside class="panel sidebar" id="sidebar">
+                <h3 class="sidebar-title">📝 博客配置</h3>
+                <div class="form-group">
+                    <label>标题 (title)</label>
+                    <input type="text" id="fm-title" placeholder="文章标题">
+                </div>
+                <div class="form-group">
+                    <label>时间 (published)</label>
+                    <input type="date" id="fm-published">
+                </div>
+                <div class="form-group">
+                    <label>简介 (description)</label>
+                    <textarea id="fm-description" rows="3" placeholder="文章简介..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>封面 (image)</label>
+                    <input type="text" id="fm-image" placeholder="图片URL">
+                </div>
+                <div class="form-group">
+                    <label>标签 (tags)</label>
+                    <input type="text" id="fm-tags" placeholder="逗号分隔,如: linux,blog">
+                </div>
+                <div class="form-group">
+                    <label>分类 (category)</label>
+                    <input type="text" id="fm-category" placeholder="文章分类">
+                </div>
+            </aside>
+
+            <div class="editor-container">
+                <div class="panel editor-panel" id="editor-panel">
+                    <textarea id="markdown-input" placeholder="在这里输入 Markdown 文本... 支持直接粘贴图片哦~ (@･ω･)"></textarea>
+                </div>
+                <!-- 右侧预览面板 -->
+                <div class="panel preview-panel markdown-body" id="preview-panel">
+                    <div id="markdown-preview"></div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <!-- 导出按钮 -->
+            <button class="cssbuttons-io-button export-btn" id="export-btn" style="margin-right: 15px;">
+                导出文件
+                <div class="icon">
+                    <svg height="24" width="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M0 0h24v24H0z" fill="none"></path>
+                        <path d="M13 10h5l-6 6-6-6h5V3h2v7zm-9 9h16v-7h2v9H2v-9h2v7z" fill="currentColor"></path>
+                    </svg>
+                </div>
+            </button>
+
+            <button class="cssbuttons-io-button export-btn" id="upload-btn" style="margin-right: 15px;">
+                同步仓库
+                <div class="icon">
+                    <svg height="24" width="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M0 0h24v24H0z" fill="none"></path>
+                        <path d="M12 16l-6-6h4V3h4v7h4l-6 6zm-7 2h14v2H5v-2z" fill="currentColor"></path>
+                    </svg>
+                </div>
+            </button>
+            
+            <!-- 清空按钮 -->
+            <button class="cssbuttons-io-button" id="clear-btn">
+                清空内容
+                <div class="icon">
+                    <svg height="24" width="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M0 0h24v24H0z" fill="none"></path>
+                        <path d="M16.192 6.344L11.949 10.586 7.707 6.344 6.293 7.758 10.535 12 6.293 16.242 7.707 17.656 11.949 13.414 16.192 17.656 17.606 16.242 13.364 12 17.606 7.758z" fill="currentColor"></path>
+                    </svg>
+                </div>
+            </button>
+        </footer>
+        <div class="build-credit">
+            <a href="https://github.com/mumuhaha487/09md_edit" target="_blank" rel="noopener noreferrer">09md_edit</a>
+            <span>由</span>
+            <a href="https://github.com/mumuhaha487" target="_blank" rel="noopener noreferrer">mumuhaha</a>
+            <span>构建</span>
+        </div>
+    </div>
+    
+    <div id="toast" class="toast"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>

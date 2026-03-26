@@ -1,0 +1,355 @@
+:root {
+    --pink-light: #fff0f5;
+    --pink-primary: #ffb7c5;
+    --pink-dark: #ff69b4;
+    --text-color: #4a4a4a;
+    --border-radius: 15px;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Comic Sans MS', 'ZCOOL KuaiLe', sans-serif;
+    background-color: var(--pink-light);
+    background-image: radial-gradient(#ffb7c5 1px, transparent 1px);
+    background-size: 20px 20px;
+    color: var(--text-color);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+.container {
+    width: 95%;
+    max-width: 1600px; /* 增大最大宽度以适应并排布局 */
+    height: 95vh;
+    display: flex;
+    flex-direction: column;
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: var(--border-radius);
+    box-shadow: 0 10px 30px rgba(255, 105, 180, 0.2);
+    backdrop-filter: blur(10px);
+    padding: 20px;
+    border: 2px solid var(--pink-primary);
+}
+
+header {
+    text-align: center;
+    margin-bottom: 10px;
+    position: relative;
+}
+
+/* 顶部工具栏按钮 */
+.toolbar {
+    display: none; /* 移除切换按钮 */
+}
+
+/* 自定义滚动条美化 */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(255, 240, 245, 0.5); /* 极浅的粉色背景 */
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--pink-primary); /* 粉色滑块 */
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--pink-dark); /* 悬浮时变深粉色 */
+}
+
+/* 模糊淡入淡出文字动画 */
+@keyframes blurFadeInOut {
+    0% {
+        opacity: 0;
+        filter: blur(10px);
+        transform: translateY(-10px);
+    }
+    10% {
+        opacity: 1;
+        filter: blur(0);
+        transform: translateY(0);
+    }
+    90% {
+        opacity: 1;
+        filter: blur(0);
+        transform: translateY(0);
+    }
+    100% {
+        opacity: 0;
+        filter: blur(10px);
+        transform: translateY(10px);
+    }
+}
+
+.blur-text-animation {
+    animation: blurFadeInOut 8s infinite;
+    color: var(--pink-dark);
+    margin: 10px 0;
+}
+
+.delay-1 {
+    animation-delay: 1s;
+    font-size: 1.1em;
+    color: var(--text-color);
+}
+
+.main-wrapper {
+    display: flex;
+    flex: 1;
+    gap: 20px;
+    margin-bottom: 20px;
+    /* Change to absolute positioning context to force fixed height */
+    position: relative;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+/* 侧边栏：配置区域 */
+.sidebar {
+    width: 250px; /* 最小宽度 */
+    flex-shrink: 0;
+    padding: 20px;
+    overflow-y: auto;
+    height: 100%; /* Force 100% height of parent */
+    box-sizing: border-box;
+}
+
+/* 中间编辑区域和右侧预览区域容器 */
+.editor-container {
+    display: flex;
+    flex: 1;
+    gap: 20px;
+    height: 100%; /* Force 100% height of parent */
+    min-height: 0;
+}
+
+/* 编辑器面板：最大化 */
+.editor-panel {
+    flex: 1.2; /* 让编辑器占据合理的比例 */
+    display: flex;
+    flex-direction: column;
+    height: 100%; /* Force 100% height */
+    min-height: 0;
+}
+
+/* 预览面板：次之 */
+.preview-panel {
+    flex: 1; /* 预览区域略小于编辑区 */
+    padding: 20px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background-color: #fff;
+    height: 100%; /* Force 100% height */
+    min-height: 0;
+    box-sizing: border-box;
+}
+
+.panel {
+    display: flex;
+    flex-direction: column;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: var(--border-radius);
+    border: 2px dashed var(--pink-primary);
+    overflow: hidden;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.sidebar,
+.preview-panel {
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.panel:hover {
+    box-shadow: 0 0 15px rgba(255, 183, 197, 0.5);
+    border-color: var(--pink-dark);
+}
+
+textarea {
+    width: 100%;
+    height: 100%;
+    resize: none;
+    border: none;
+    padding: 20px;
+    font-size: 16px;
+    font-family: monospace;
+    background: transparent;
+    outline: none;
+    color: var(--text-color);
+    box-sizing: border-box;
+}
+
+textarea::placeholder {
+    color: #ccc;
+}
+
+.sidebar-title {
+    color: var(--pink-dark);
+    text-align: center;
+    margin-top: 0;
+    margin-bottom: 20px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+    display: flex;
+    flex-direction: column;
+}
+
+.form-group label {
+    font-size: 14px;
+    font-weight: bold;
+    color: var(--pink-dark);
+    margin-bottom: 5px;
+}
+
+.form-group input,
+.form-group textarea {
+    border: 2px solid var(--pink-primary);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 14px;
+    font-family: inherit;
+    background: rgba(255, 255, 255, 0.8);
+    color: var(--text-color);
+    outline: none;
+    transition: all 0.3s ease;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+    border-color: var(--pink-dark);
+    box-shadow: 0 0 8px rgba(255, 105, 180, 0.3);
+}
+
+.form-group textarea {
+    resize: vertical;
+}
+
+.markdown-body {
+    word-wrap: break-word;
+    background-color: transparent !important;
+}
+
+.markdown-body img {
+    max-width: 100%;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+footer {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.build-credit {
+    margin-top: 10px;
+    text-align: center;
+    font-size: 14px;
+    color: var(--text-color);
+}
+
+.build-credit a {
+    color: var(--pink-dark);
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.build-credit a:hover {
+    text-decoration: underline;
+}
+
+/* CSS Buttons.io Style */
+.cssbuttons-io-button {
+    background: var(--pink-dark);
+    color: white;
+    font-family: inherit;
+    padding: 0.35em;
+    padding-left: 1.2em;
+    font-size: 17px;
+    font-weight: 500;
+    border-radius: 0.9em;
+    border: none;
+    letter-spacing: 0.05em;
+    display: flex;
+    align-items: center;
+    box-shadow: inset 0 0 1.6em -0.6em var(--pink-dark);
+    overflow: hidden;
+    position: relative;
+    height: 2.8em;
+    padding-right: 3.3em;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.export-btn {
+    background: #ff8eaf; /* Slightly different pink for distinction */
+}
+
+.cssbuttons-io-button .icon {
+    background: white;
+    margin-left: 1em;
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 2.2em;
+    width: 2.2em;
+    border-radius: 0.7em;
+    box-shadow: 0.1em 0.1em 0.6em 0.2em var(--pink-primary);
+    right: 0.3em;
+    transition: all 0.3s;
+}
+
+.cssbuttons-io-button:hover .icon {
+    width: calc(100% - 0.6em);
+}
+
+.cssbuttons-io-button .icon svg {
+    width: 1.1em;
+    transition: transform 0.3s;
+    color: var(--pink-dark);
+}
+
+.cssbuttons-io-button:hover .icon svg {
+    transform: translateX(0.1em);
+}
+
+.cssbuttons-io-button:active .icon {
+    transform: scale(0.95);
+}
+
+/* Toast Notification */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--pink-dark);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 20px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    font-size: 14px;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+    z-index: 1000;
+}
+
+.toast.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(-50%, -20px);
+}

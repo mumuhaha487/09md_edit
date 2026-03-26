@@ -3,7 +3,7 @@ import {
   requireEnv,
   normalizeTargetDir,
   safeMarkdownFileName,
-  uploadMarkdownToCnb
+  uploadMarkdownToCnbRepo
 } from './_shared.js';
 
 export const onRequestPost = async ({ request, env }) => {
@@ -19,23 +19,26 @@ export const onRequestPost = async ({ request, env }) => {
       return json({ error: 'Markdown 内容缺失' }, { status: 400 });
     }
 
-    const cnbApiBase = String(env.CNB_API_BASE_URL || 'https://api.cnb.cool');
+    const cnbGitApiBase = String(env.CNB_GIT_API_BASE_URL || 'https://api.cnb.cool/api/v4');
     const repo = requireEnv(env.CNB_REPO, 'CNB_REPO');
     const token = requireEnv(env.CNB_TOKEN, 'CNB_TOKEN');
+    const branch = String(env.CNB_BRANCH || 'main');
     const targetDir = normalizeTargetDir(env.MARKDOWN_TARGET_DIR || '123', '123');
     const fileName = safeMarkdownFileName(name);
     const filePath = `${targetDir}/${fileName}`;
 
-    const result = await uploadMarkdownToCnb({
-      cnbApiBase,
+    const result = await uploadMarkdownToCnbRepo({
+      cnbGitApiBase,
       repo,
       token,
+      branch,
       filePath,
       content
     });
 
     return json({
       url: result.url,
+      branch: result.branch,
       name: fileName,
       path: result.path
     });

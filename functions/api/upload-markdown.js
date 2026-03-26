@@ -3,7 +3,7 @@ import {
   requireEnv,
   normalizeTargetDir,
   safeMarkdownFileName,
-  uploadMarkdownToGitHub
+  uploadMarkdownToCnb
 } from './_shared.js';
 
 export const onRequestPost = async ({ request, env }) => {
@@ -19,28 +19,23 @@ export const onRequestPost = async ({ request, env }) => {
       return json({ error: 'Markdown 内容缺失' }, { status: 400 });
     }
 
-    const repo = requireEnv(env.CNB_REPO || env.GITHUB_REPO, 'CNB_REPO');
-    const token = requireEnv(env.CNB_TOKEN || env.GITHUB_TOKEN, 'CNB_TOKEN');
-    const branch = String(env.CNB_BRANCH || env.GITHUB_BRANCH || 'main');
-    const committerName = String(env.CNB_GIT_USERNAME || env.GITHUB_COMMITTER_NAME || 'markdown-sync-bot');
-    const committerEmail = String(env.GITHUB_COMMITTER_EMAIL || `${committerName}@users.noreply.github.com`);
+    const cnbApiBase = String(env.CNB_API_BASE_URL || 'https://api.cnb.cool');
+    const repo = requireEnv(env.CNB_REPO, 'CNB_REPO');
+    const token = requireEnv(env.CNB_TOKEN, 'CNB_TOKEN');
     const targetDir = normalizeTargetDir(env.MARKDOWN_TARGET_DIR || '123', '123');
     const fileName = safeMarkdownFileName(name);
     const filePath = `${targetDir}/${fileName}`;
 
-    const result = await uploadMarkdownToGitHub({
+    const result = await uploadMarkdownToCnb({
+      cnbApiBase,
       repo,
       token,
-      branch,
       filePath,
-      content,
-      committerName,
-      committerEmail
+      content
     });
 
     return json({
       url: result.url,
-      branch: result.branch,
       name: fileName,
       path: result.path
     });

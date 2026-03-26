@@ -44,6 +44,7 @@ export async function uploadMarkdownToCnb({
   content
 }) {
   const bodyBytes = new TextEncoder().encode(content);
+  const uploadName = String(filePath || '').split('/').filter(Boolean).pop() || 'untitled.md';
   const headers = {
     Authorization: `Bearer ${token}`,
     'Content-Type': 'application/json'
@@ -53,10 +54,11 @@ export async function uploadMarkdownToCnb({
     method: 'POST',
     headers,
     body: JSON.stringify({
-      name: filePath,
+      name: uploadName,
       size: bodyBytes.byteLength,
       ext: {
-        type: 'markdown'
+        type: 'markdown',
+        target_dir: filePath.includes('/') ? filePath.slice(0, filePath.lastIndexOf('/')) : ''
       }
     })
   });

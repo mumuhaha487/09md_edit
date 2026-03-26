@@ -1,9 +1,11 @@
-import { json } from './_shared.js';
+import { getPublicConfig, json } from './_shared.js';
 
 export const onRequestGet = async ({ env }) => {
-  const imagePublicBaseUrl = (env.IMAGE_BED_PUBLIC_BASE_URL || 'https://image.0ha.top').replace(/\/+$/, '');
+  const config = getPublicConfig(env);
+  const markdownSyncApiUrl = String(env.MARKDOWN_SYNC_API_URL || '/api/upload-markdown').trim() || '/api/upload-markdown';
   return json({
-    imagePublicBaseUrl,
-    backend: 'pages-functions-cnb-v2'
+    ...config,
+    markdownSyncApiUrl,
+    backend: 'pages-functions-refactor'
   });
 };

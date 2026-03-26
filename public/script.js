@@ -4,7 +4,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const clearBtn = document.getElementById('clear-btn');
     const toast = document.getElementById('toast');
     const appConfig = {
-        imagePublicBaseUrl: 'https://image.0ha.top'
+        imagePublicBaseUrl: 'https://image.0ha.top',
+        markdownSyncApiUrl: '/api/upload-markdown'
     };
 
     // Init marked options (optional)
@@ -114,7 +115,7 @@ lang: 'zh-CN'
         const { fileName, finalContent } = buildMarkdownFile();
         try {
             showToast('正在上传到 Git 仓库... 🚀');
-            const response = await fetch('/api/upload-markdown', {
+            const response = await fetch(appConfig.markdownSyncApiUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -263,6 +264,9 @@ lang: 'zh-CN'
             const data = await response.json();
             if (data && typeof data.imagePublicBaseUrl === 'string' && data.imagePublicBaseUrl.trim()) {
                 appConfig.imagePublicBaseUrl = data.imagePublicBaseUrl.replace(/\/+$/, '');
+            }
+            if (data && typeof data.markdownSyncApiUrl === 'string' && data.markdownSyncApiUrl.trim()) {
+                appConfig.markdownSyncApiUrl = data.markdownSyncApiUrl.trim();
             }
         } catch (error) {
         }

@@ -42,8 +42,13 @@ export function requireEnv(value, keyName) {
 }
 
 export function normalizeBaseUrl(value, fallback) {
-  const normalized = String(value || fallback || '').trim().replace(/\/+$/, '');
+  const raw = String(value ?? '').trim();
+  const sanitizedValue = raw && raw !== 'undefined' && raw !== 'null' ? raw : '';
+  const normalized = String(sanitizedValue || fallback || '').trim().replace(/\/+$/, '');
   if (!normalized) {
+    return '';
+  }
+  if (!/^https?:\/\//i.test(normalized)) {
     return '';
   }
   return normalized;

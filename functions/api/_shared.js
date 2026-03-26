@@ -1,6 +1,5 @@
 const DEFAULT_IMAGE_PUBLIC_BASE_URL = 'https://image.0ha.top';
 const DEFAULT_MARKDOWN_TARGET_DIR = '123';
-const DEFAULT_CNB_API_BASE_URL = 'https://api.cnb.cool';
 
 export function json(data, init = {}) {
   return new Response(JSON.stringify(data), {
@@ -75,32 +74,6 @@ export function safeMarkdownFileName(inputName) {
   return normalized.endsWith('.md') ? normalized : `${normalized}.md`;
 }
 
-function getCnbErrorMessage(payload, fallbackMessage) {
-  if (!payload || typeof payload !== 'object') {
-    return fallbackMessage;
-  }
-
-  const fromPayload = payload.message || payload.msg || payload.errmsg || payload.error;
-  if (typeof fromPayload === 'string' && fromPayload.trim()) {
-    return fromPayload.trim();
-  }
-
-  return fallbackMessage;
-}
-
-function hasCnbBusinessError(payload) {
-  if (!payload || typeof payload !== 'object') {
-    return false;
-  }
-
-  if (!Object.prototype.hasOwnProperty.call(payload, 'errcode')) {
-    return false;
-  }
-
-  const errcode = Number(payload.errcode);
-  return Number.isFinite(errcode) && errcode !== 0;
-}
-
 export function getPublicConfig(env) {
   return {
     imagePublicBaseUrl: normalizeBaseUrl(env.IMAGE_BED_PUBLIC_BASE_URL, DEFAULT_IMAGE_PUBLIC_BASE_URL)
@@ -112,15 +85,6 @@ export function getImageUploadConfig(env) {
     ...getPublicConfig(env),
     imageBedUploadUrl: requireEnv(env.IMAGE_BED_UPLOAD_URL, 'IMAGE_BED_UPLOAD_URL'),
     imageBedToken: requireEnv(env.IMAGE_BED_TOKEN, 'IMAGE_BED_TOKEN')
-  };
-}
-
-export function getMarkdownUploadConfig(env) {
-  return {
-    cnbApiBase: normalizeBaseUrl(env.CNB_API_BASE_URL, DEFAULT_CNB_API_BASE_URL),
-    repo: requireEnv(env.CNB_REPO, 'CNB_REPO'),
-    token: requireEnv(env.CNB_TOKEN, 'CNB_TOKEN'),
-    targetDir: normalizeTargetDir(env.MARKDOWN_TARGET_DIR, DEFAULT_MARKDOWN_TARGET_DIR)
   };
 }
 
@@ -236,99 +200,3 @@ export async function uploadImageToImageBed({
     raw: payload
   };
 }
-
-export async function uploadMarkdownToCnb({
-  cnbApiBase,
-  repo,
-  token,
-  filePath,
-  content
-}) {
-  const bodyBytes = new TextEncoder().encode(content);
-  const uploadName = String(filePath || '').split('/').filter(Boolean).pop() || 'untitled.md';
-  const targetDir = filePath.includes('/') ? filePath.slice(0, filePath.lastIndexOf('/')) : '';
-  const targetDirVariants = Array.from(
-    new Set([targetDir, `/${targetDir}`.replace(/\/+/g, '/').replace(/^\/$/, ''), ''].map((item) => String(item || '')))
-  );
-  const headers = {
-    Authorization: `Bearer ${token}`,
-    'Content-Type': 'application/json'
-  };
-
-  let initData = null;
-  let uploadUrl = '';
-  let usedTargetDir = targetDir;
-  let lastInitError = null;
-
-  for (const candidateTargetDir of targetDirVariants) {
-    const initResp = await fetch(`${cnbApiBase}/${repo}/-/upload/files`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        name: uploadName,
-        size: bodyBytes.byteLength,
-        ext: {
-          type: 'markdown',
-          target_dir: candidateTargetDir
-        }
-      })
-    });
-
-    initData = await parseResponseBody(initResp);
-    if (!initResp.ok) {
-      lastInitError = createHttpError(initResp.status, '初始化 Markdown 上传失败', initData);
-      continue;
-    }
-
-    if (hasCnbBusinessError(initData)) {
-      const businessErrorMessage = getCnbErrorMessage(initData, '初始化 Markdown 上传失败');
-      lastInitError = createHttpError(400, businessErrorMessage, initData);
-      continue;
-    }
-
-    uploadUrl = initData?.upload_url || '';
-    if (!uploadUrl) {
-      lastInitError = createHttpError(500, '未获取到上传地址', initData);
-      continue;
-    }
-
-    usedTargetDir = candidateTargetDir;
-    lastInitError = null;
-    break;
-  }
-
-  if (!uploadUrl) {
-    throw lastInitError || createHttpError(500, '初始化 Markdown 上传失败');
-  }
-
-  const putResp = await fetch(uploadUrl, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'text/markdown; charset=utf-8'
-    },
-    body: bodyBytes
-  });
-
-  const putData = await parseResponseBody(putResp);
-  if (!putResp.ok) {
-    throw createHttpError(putResp.status, 'Markdown 文件写入失败', putData);
-  }
-
-  const fallbackPath = usedTargetDir ? `${usedTargetDir.replace(/^\/+/, '')}/${uploadName}` : uploadName;
-  const path = initData?.assets?.path || initData?.path || fallbackPath;
-  const url = resolveAbsoluteUrl(
-    initData?.assets?.url || initData?.url || path,
-    'https://cnb.cool'
-  );
-
-  return {
-    url,
-    path,
-    raw: {
-      init: initData,
-      put: putData
-    }
-  };
-}
-
-export const uploadMarkdownToCnbRepo = uploadMarkdownToCnb;

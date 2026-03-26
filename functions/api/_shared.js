@@ -127,6 +127,31 @@ function buildBlobUrl(repo, branch, filePath) {
   return `https://cnb.cool/${repo}/-/blob/${safeBranch}/${normalizedPath}`;
 }
 
+function isLikelyTemporaryFilesUrl(url) {
+  const value = String(url || '').trim();
+  if (!value) {
+    return false;
+  }
+  return /\/-\/files\//i.test(value);
+}
+
+function pickApiBaseCandidates(cnbApiBase) {
+  const candidates = [
+    normalizeUrl(cnbApiBase),
+    'https://api.cnb.cool',
+    'https://cnb.cool/api'
+  ].filter(Boolean);
+  const seen = new Set();
+  const result = [];
+  for (const candidate of candidates) {
+    if (!seen.has(candidate)) {
+      seen.add(candidate);
+      result.push(candidate);
+    }
+  }
+  return result;
+}
+
 async function uploadByCnbUploadApi({
   cnbApiBase,
   repo,
@@ -136,84 +161,91 @@ async function uploadByCnbUploadApi({
 }) {
   const uploadName = String(filePath || '').split('/').filter(Boolean).pop() || 'untitled.md';
   const targetDir = filePath.includes('/') ? filePath.slice(0, filePath.lastIndexOf('/')) : '';
-  const initUrl = `${normalizeUrl(cnbApiBase)}/${repo}/-/upload/files`;
   const errors = [];
 
-  for (const authHeaders of authHeadersList) {
-    const initResp = await fetch(initUrl, {
-      method: 'POST',
-      headers: {
-        ...authHeaders,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        name: uploadName,
-        size: bodyBytes.byteLength,
-        ext: {
-          type: 'markdown',
-          target_dir: targetDir
-        }
-      })
-    });
-
-    const initParsed = await parseResponseText(initResp);
-    if (!initResp.ok) {
-      errors.push(`初始化上传失败(${initResp.status}): ${initParsed.text}`);
-      continue;
-    }
-
-    const initData = initParsed.json || {};
-    const uploadUrl = initData.upload_url || initData.uploadUrl || initData.url || '';
-    if (!uploadUrl) {
-      errors.push('初始化上传失败: 未获取到上传地址');
-      continue;
-    }
-
-    const uploadMethod = String(initData.upload_method || initData.uploadMethod || initData.method || 'PUT').toUpperCase();
-    const dynamicHeaders = initData.upload_headers || initData.uploadHeaders || {};
-    const uploadResp = await fetch(uploadUrl, {
-      method: uploadMethod,
-      headers: {
-        'Content-Type': 'text/markdown; charset=utf-8',
-        ...(dynamicHeaders && typeof dynamicHeaders === 'object' ? dynamicHeaders : {})
-      },
-      body: bodyBytes
-    });
-
-    const uploadParsed = await parseResponseText(uploadResp);
-    if (!uploadResp.ok) {
-      errors.push(`流式上传失败(${uploadResp.status}): ${uploadParsed.text}`);
-      continue;
-    }
-
-    const completeUrl = initData.complete_url || initData.completeUrl || '';
-    if (completeUrl) {
-      const completeResp = await fetch(completeUrl, {
-        method: String(initData.complete_method || initData.completeMethod || 'POST').toUpperCase(),
+  for (const base of pickApiBaseCandidates(cnbApiBase)) {
+    const initUrl = `${base}/${repo}/-/upload/files`;
+    for (const authHeaders of authHeadersList) {
+      const initResp = await fetch(initUrl, {
+        method: 'POST',
         headers: {
           ...authHeaders,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          path: initData?.assets?.path || initData?.path || filePath
+          name: uploadName,
+          size: bodyBytes.byteLength,
+          ext: {
+            type: 'markdown',
+            target_dir: targetDir
+          }
         })
       });
-      const completeParsed = await parseResponseText(completeResp);
-      if (!completeResp.ok) {
-        errors.push(`完成提交失败(${completeResp.status}): ${completeParsed.text}`);
+
+      const initParsed = await parseResponseText(initResp);
+      if (!initResp.ok) {
+        errors.push(`初始化上传失败(${initResp.status}): ${initParsed.text}`);
         continue;
       }
+
+      const initData = initParsed.json || {};
+      const uploadUrl = initData.upload_url || initData.uploadUrl || initData.url || '';
+      if (!uploadUrl) {
+        errors.push('初始化上传失败: 未获取到上传地址');
+        continue;
+      }
+
+      const uploadMethod = String(initData.upload_method || initData.uploadMethod || initData.method || 'PUT').toUpperCase();
+      const dynamicHeaders = initData.upload_headers || initData.uploadHeaders || {};
+      const uploadResp = await fetch(uploadUrl, {
+        method: uploadMethod,
+        headers: {
+          'Content-Type': 'text/markdown; charset=utf-8',
+          ...(dynamicHeaders && typeof dynamicHeaders === 'object' ? dynamicHeaders : {})
+        },
+        body: bodyBytes
+      });
+
+      const uploadParsed = await parseResponseText(uploadResp);
+      if (!uploadResp.ok) {
+        errors.push(`流式上传失败(${uploadResp.status}): ${uploadParsed.text}`);
+        continue;
+      }
+
+      const completeUrl = initData.complete_url || initData.completeUrl || '';
+      if (completeUrl) {
+        const completeResp = await fetch(completeUrl, {
+          method: String(initData.complete_method || initData.completeMethod || 'POST').toUpperCase(),
+          headers: {
+            ...authHeaders,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            path: initData?.assets?.path || initData?.path || filePath
+          })
+        });
+        const completeParsed = await parseResponseText(completeResp);
+        if (!completeResp.ok) {
+          errors.push(`完成提交失败(${completeResp.status}): ${completeParsed.text}`);
+          continue;
+        }
+      }
+
+      const uploadedPath = initData?.assets?.path || initData?.path || filePath;
+      const uploadedUrl = initData?.assets?.url
+        || initData?.url
+        || (uploadedPath ? (String(uploadedPath).startsWith('http') ? uploadedPath : `https://cnb.cool${uploadedPath}`) : '');
+
+      if (isLikelyTemporaryFilesUrl(uploadedUrl)) {
+        errors.push(`上传接口返回临时文件链接，未提交到仓库: ${uploadedUrl}`);
+        continue;
+      }
+
+      return {
+        url: uploadedUrl || buildBlobUrl(repo, 'main', filePath),
+        path: uploadedPath
+      };
     }
-
-    const uploadedPath = initData?.assets?.path || initData?.path || filePath;
-    const uploadedUrl = initData?.assets?.url
-      || initData?.url
-      || (uploadedPath ? (String(uploadedPath).startsWith('http') ? uploadedPath : `https://cnb.cool${uploadedPath}`) : '');
-
-    return {
-      url: uploadedUrl || buildBlobUrl(repo, 'main', filePath),
-      path: uploadedPath
-    };
   }
 
   throw new Error(errors.filter(Boolean).join(' | ') || '上传接口调用失败');
@@ -227,15 +259,17 @@ async function uploadByRepoContentsApi({
   authHeadersList,
   preferredBranch
 }) {
-  const base = normalizeUrl(cnbApiBase);
   const repoPath = normalizeRepoPath(repo);
   const encodedFilePath = normalizeFilePath(filePath);
-  const endpointCandidates = [
-    `${base}/api/v1/repos/${repoPath}/contents/${encodedFilePath}`,
-    `${base}/repos/${repoPath}/contents/${encodedFilePath}`
-  ];
+  const endpointCandidates = [];
+  for (const base of pickApiBaseCandidates(cnbApiBase)) {
+    endpointCandidates.push(`${base}/api/v1/repos/${repoPath}/contents/${encodedFilePath}`);
+    endpointCandidates.push(`${base}/v1/repos/${repoPath}/contents/${encodedFilePath}`);
+    endpointCandidates.push(`${base}/repos/${repoPath}/contents/${encodedFilePath}`);
+  }
+  const uniqueEndpointCandidates = [...new Set(endpointCandidates)];
   const branchCandidates = [];
-  for (const candidate of [preferredBranch, 'main', 'master']) {
+  for (const candidate of [preferredBranch, 'main', 'master', 'markdown']) {
     const normalized = String(candidate || '').trim();
     if (normalized && !branchCandidates.includes(normalized)) {
       branchCandidates.push(normalized);
@@ -244,7 +278,7 @@ async function uploadByRepoContentsApi({
   const base64Content = toBase64Utf8(content);
   const errors = [];
 
-  for (const endpoint of endpointCandidates) {
+  for (const endpoint of uniqueEndpointCandidates) {
     for (const authHeaders of authHeadersList) {
       for (const branch of branchCandidates) {
         let sha = '';
@@ -305,19 +339,7 @@ export async function uploadMarkdownToCnb({
 }) {
   const authHeadersList = buildAuthHeaders(token, cnbGitUsername);
   const bodyBytes = new TextEncoder().encode(content);
-  const cnbUploadApiError = [];
-
-  try {
-    return await uploadByCnbUploadApi({
-      cnbApiBase,
-      repo,
-      filePath,
-      bodyBytes,
-      authHeadersList
-    });
-  } catch (error) {
-    cnbUploadApiError.push(error?.message || String(error));
-  }
+  const errors = [];
 
   try {
     return await uploadByRepoContentsApi({
@@ -329,8 +351,20 @@ export async function uploadMarkdownToCnb({
       preferredBranch: branch
     });
   } catch (error) {
-    cnbUploadApiError.push(error?.message || String(error));
+    errors.push(error?.message || String(error));
   }
 
-  throw new Error(cnbUploadApiError.filter(Boolean).join(' || ') || 'CNB 上传 Markdown 失败');
+  try {
+    return await uploadByCnbUploadApi({
+      cnbApiBase,
+      repo,
+      filePath,
+      bodyBytes,
+      authHeadersList
+    });
+  } catch (error) {
+    errors.push(error?.message || String(error));
+  }
+
+  throw new Error(errors.filter(Boolean).join(' || ') || 'CNB 上传 Markdown 失败');
 }

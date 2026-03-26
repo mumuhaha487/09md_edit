@@ -1,14 +1,14 @@
 import {
-  json,
-  requireEnv,
-  normalizeTargetDir,
-  safeMarkdownFileName,
-  uploadMarkdownToCnbRepo
+  createHttpError,
+  errorResponse,
+  parseResponseBody,
+  parseJsonBody,
+  json
 } from './_shared.js';
 
 export const onRequestPost = async ({ request, env }) => {
   try {
-    const payload = await request.json();
+    const payload = await parseJsonBody(request);
     const name = payload?.name;
     const content = payload?.content;
 
@@ -19,30 +19,33 @@ export const onRequestPost = async ({ request, env }) => {
       return json({ error: 'Markdown 内容缺失' }, { status: 400 });
     }
 
-    const cnbGitApiBase = String(env.CNB_GIT_API_BASE_URL || 'https://api.cnb.cool/api/v4');
-    const repo = requireEnv(env.CNB_REPO, 'CNB_REPO');
-    const token = requireEnv(env.CNB_TOKEN, 'CNB_TOKEN');
-    const branch = String(env.CNB_BRANCH || 'main');
-    const targetDir = normalizeTargetDir(env.MARKDOWN_TARGET_DIR || '123', '123');
-    const fileName = safeMarkdownFileName(name);
-    const filePath = `${targetDir}/${fileName}`;
+    const syncApiUrl = String(env.MARKDOWN_SYNC_API_URL || '').trim();
+    if (!syncApiUrl || !/^https?:\/\//i.test(syncApiUrl)) {
+      throw createHttpError(
+        500,
+        '未配置有效的 MARKDOWN_SYNC_API_URL',
+        'Cloudflare Pages 无法直接执行 git push，请将 MARKDOWN_SYNC_API_URL 指向可运行 server.js 的 /api/upload-markdown'
+      );
+    }
 
-    const result = await uploadMarkdownToCnbRepo({
-      cnbGitApiBase,
-      repo,
-      token,
-      branch,
-      filePath,
-      content
+    const upstreamResp = await fetch(syncApiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name,
+        content
+      })
     });
 
-    return json({
-      url: result.url,
-      branch: result.branch,
-      name: fileName,
-      path: result.path
-    });
+    const upstreamData = await parseResponseBody(upstreamResp);
+    if (!upstreamResp.ok) {
+      throw createHttpError(upstreamResp.status, 'Git 同步失败', upstreamData);
+    }
+
+    return json(upstreamData || {});
   } catch (error) {
-    return json({ error: 'CNB 上传 Markdown 失败', details: error.message }, { status: 500 });
+    return errorResponse(error, 'Git 上传 Markdown 失败');
   }
 };

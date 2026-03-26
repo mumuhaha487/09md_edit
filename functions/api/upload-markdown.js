@@ -22,6 +22,8 @@ export const onRequestPost = async ({ request, env }) => {
     const cnbApiBase = String(env.CNB_API_BASE_URL || 'https://api.cnb.cool');
     const repo = requireEnv(env.CNB_REPO, 'CNB_REPO');
     const token = requireEnv(env.CNB_TOKEN, 'CNB_TOKEN');
+    const cnbGitUsername = String(env.CNB_GIT_USERNAME || '').trim();
+    const cnbBranch = String(env.CNB_BRANCH || '').trim();
     const targetDir = normalizeTargetDir(env.MARKDOWN_TARGET_DIR || '123', '123');
     const fileName = safeMarkdownFileName(name);
     const filePath = `${targetDir}/${fileName}`;
@@ -31,7 +33,9 @@ export const onRequestPost = async ({ request, env }) => {
       repo,
       token,
       filePath,
-      content
+      content,
+      cnbGitUsername,
+      branch: cnbBranch
     });
 
     return json({

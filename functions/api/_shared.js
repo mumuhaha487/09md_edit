@@ -8,49 +8,14 @@ export function json(data, init = {}) {
   });
 }
 
-export function createHttpError(status, message, details) {
-  const error = new Error(message);
-  error.status = status;
-  if (details !== undefined) {
-    error.details = details;
-  }
-  return error;
-}
-
-export function errorResponse(error, fallbackMessage = '服务器内部错误') {
-  const status = Number.isInteger(error?.status) ? error.status : 500;
-  const payload = {
-    error: error?.message || fallbackMessage
-  };
-
-  if (error?.details !== undefined) {
-    payload.details = error.details;
-  }
-
-  return json(payload, { status });
-}
-
 export function requireEnv(value, keyName) {
   if (!value || !String(value).trim()) {
-    throw createHttpError(500, `缺少环境变量 ${keyName}`);
+    throw new Error(`缺少环境变量 ${keyName}`);
   }
   return String(value).trim();
 }
 
-export function normalizeBaseUrl(value, fallback) {
-  const raw = String(value ?? '').trim();
-  const sanitizedValue = raw && raw !== 'undefined' && raw !== 'null' ? raw : '';
-  const normalized = String(sanitizedValue || fallback || '').trim().replace(/\/+$/, '');
-  if (!normalized) {
-    return '';
-  }
-  if (!/^https?:\/\//i.test(normalized)) {
-    return '';
-  }
-  return normalized;
-}
-
-export function normalizeTargetDir(inputDir, fallback = '') {
+export function normalizeTargetDir(inputDir, fallback = '123') {
   const normalized = String(inputDir || '')
     .replace(/\\/g, '/')
     .split('/')
@@ -71,135 +36,61 @@ export function safeMarkdownFileName(inputName) {
   return normalized.endsWith('.md') ? normalized : `${normalized}.md`;
 }
 
-export function getPublicConfig(env) {
-  const imagePublicBaseUrl = normalizeBaseUrl(
-    requireEnv(env.IMAGE_BED_PUBLIC_BASE_URL, 'IMAGE_BED_PUBLIC_BASE_URL')
-  );
-  if (!imagePublicBaseUrl) {
-    throw createHttpError(500, '环境变量 IMAGE_BED_PUBLIC_BASE_URL 必须是有效的 http/https 地址');
-  }
-  return {
-    imagePublicBaseUrl
-  };
-}
-
-export function getImageUploadConfig(env) {
-  return {
-    ...getPublicConfig(env),
-    imageBedUploadUrl: requireEnv(env.IMAGE_BED_UPLOAD_URL, 'IMAGE_BED_UPLOAD_URL'),
-    imageBedToken: requireEnv(env.IMAGE_BED_TOKEN, 'IMAGE_BED_TOKEN')
-  };
-}
-
-export async function parseJsonBody(request) {
-  try {
-    return await request.json();
-  } catch (error) {
-    throw createHttpError(400, '请求体不是合法的 JSON');
-  }
-}
-
-export async function parseResponseBody(response) {
-  const text = await response.text();
-  if (!text) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(text);
-  } catch (error) {
-    return text;
-  }
-}
-
-export function getFileExtension(file) {
-  const fileName = String(file?.name || '');
-  const fileExt = fileName.includes('.') ? `.${fileName.split('.').pop().toLowerCase()}` : '';
-  if (fileExt) {
-    return fileExt;
-  }
-
-  const mimeToExt = {
-    'image/jpeg': '.jpg',
-    'image/png': '.png',
-    'image/gif': '.gif',
-    'image/webp': '.webp',
-    'image/svg+xml': '.svg',
-    'image/avif': '.avif'
-  };
-
-  return mimeToExt[String(file?.type || '').toLowerCase()] || '.png';
-}
-
-export function buildImageUploadFileName(file) {
-  return `${Date.now()}_image${getFileExtension(file)}`;
-}
-
-export function resolveAbsoluteUrl(value, baseUrl) {
-  const candidate = String(value || '').trim();
-  if (!candidate) {
-    return '';
-  }
-  if (/^https?:\/\//i.test(candidate)) {
-    return candidate;
-  }
-  if (candidate.startsWith('/')) {
-    return `${baseUrl}${candidate}`;
-  }
-  return candidate;
-}
-
-export function extractImageUrl(payload, baseUrl) {
-  if (!payload) {
-    return '';
-  }
-
-  if (Array.isArray(payload)) {
-    const firstItem = payload[0];
-    if (typeof firstItem === 'string') {
-      return resolveAbsoluteUrl(firstItem, baseUrl);
-    }
-    if (firstItem?.src) {
-      return resolveAbsoluteUrl(firstItem.src, baseUrl);
-    }
-  }
-
-  if (typeof payload === 'string') {
-    return resolveAbsoluteUrl(payload, baseUrl);
-  }
-
-  return resolveAbsoluteUrl(
-    payload.url || payload.src || payload?.data?.links?.url || payload?.data?.url || payload?.assets?.url,
-    baseUrl
-  );
-}
-
-export async function uploadImageToImageBed({
-  file,
-  imageBedUploadUrl,
-  imageBedToken,
-  imagePublicBaseUrl
+export async function uploadMarkdownToCnb({
+  cnbApiBase,
+  repo,
+  token,
+  filePath,
+  content
 }) {
-  const uploadForm = new FormData();
-  const uploadName = buildImageUploadFileName(file);
-  uploadForm.append('file', file, uploadName);
+  const bodyBytes = new TextEncoder().encode(content);
+  const uploadName = String(filePath || '').split('/').filter(Boolean).pop() || 'untitled.md';
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  };
 
-  const response = await fetch(imageBedUploadUrl, {
+  const initResp = await fetch(`${cnbApiBase.replace(/\/+$/, '')}/${repo}/-/upload/files`, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${imageBedToken}`
-    },
-    body: uploadForm
+    headers,
+    body: JSON.stringify({
+      name: uploadName,
+      size: bodyBytes.byteLength,
+      ext: {
+        type: 'markdown',
+        target_dir: filePath.includes('/') ? filePath.slice(0, filePath.lastIndexOf('/')) : ''
+      }
+    })
   });
 
-  const payload = await parseResponseBody(response);
-  if (!response.ok) {
-    throw createHttpError(response.status, '图片上传失败', payload);
+  if (!initResp.ok) {
+    const t = await initResp.text();
+    throw new Error(`初始化上传失败: ${t}`);
   }
 
+  const initData = await initResp.json();
+  const uploadUrl = initData?.upload_url;
+  if (!uploadUrl) {
+    throw new Error('未获取到上传地址');
+  }
+
+  const putResp = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'text/markdown; charset=utf-8'
+    },
+    body: bodyBytes
+  });
+
+  if (!putResp.ok) {
+    const t = await putResp.text();
+    throw new Error(`流式上传失败: ${t}`);
+  }
+
+  const path = initData?.assets?.path || '';
+  const url = path ? (path.startsWith('http') ? path : `https://cnb.cool${path}`) : uploadUrl;
   return {
-    fileName: uploadName,
-    url: extractImageUrl(payload, imagePublicBaseUrl),
-    raw: payload
+    url,
+    path
   };
 }

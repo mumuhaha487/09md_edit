@@ -1,14 +1,14 @@
 import {
-  createHttpError,
-  errorResponse,
-  parseResponseBody,
-  parseJsonBody,
-  json
+  json,
+  requireEnv,
+  normalizeTargetDir,
+  safeMarkdownFileName,
+  uploadMarkdownToCnb
 } from './_shared.js';
 
 export const onRequestPost = async ({ request, env }) => {
   try {
-    const payload = await parseJsonBody(request);
+    const payload = await request.json();
     const name = payload?.name;
     const content = payload?.content;
 
@@ -19,38 +19,27 @@ export const onRequestPost = async ({ request, env }) => {
       return json({ error: 'Markdown 内容缺失' }, { status: 400 });
     }
 
-    const syncApiUrl = String(
-      env.MARKDOWN_SYNC_API_URL ||
-      env.GIT_SYNC_API_URL ||
-      env.BACKEND_UPLOAD_MARKDOWN_URL ||
-      ''
-    ).trim();
-    if (!syncApiUrl || !/^https?:\/\//i.test(syncApiUrl)) {
-      throw createHttpError(
-        500,
-        '未配置有效的同步地址',
-        '请配置 MARKDOWN_SYNC_API_URL（或 GIT_SYNC_API_URL / BACKEND_UPLOAD_MARKDOWN_URL）指向可运行 server.js 的 /api/upload-markdown'
-      );
-    }
+    const cnbApiBase = String(env.CNB_API_BASE_URL || 'https://api.cnb.cool');
+    const repo = requireEnv(env.CNB_REPO, 'CNB_REPO');
+    const token = requireEnv(env.CNB_TOKEN, 'CNB_TOKEN');
+    const targetDir = normalizeTargetDir(env.MARKDOWN_TARGET_DIR || '123', '123');
+    const fileName = safeMarkdownFileName(name);
+    const filePath = `${targetDir}/${fileName}`;
 
-    const upstreamResp = await fetch(syncApiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        name,
-        content
-      })
+    const result = await uploadMarkdownToCnb({
+      cnbApiBase,
+      repo,
+      token,
+      filePath,
+      content
     });
 
-    const upstreamData = await parseResponseBody(upstreamResp);
-    if (!upstreamResp.ok) {
-      throw createHttpError(upstreamResp.status, 'Git 同步失败', upstreamData);
-    }
-
-    return json(upstreamData || {});
+    return json({
+      url: result.url,
+      name: fileName,
+      path: result.path
+    });
   } catch (error) {
-    return errorResponse(error, 'Git 上传 Markdown 失败');
+    return json({ error: 'CNB 上传 Markdown 失败', details: error.message }, { status: 500 });
   }
 };

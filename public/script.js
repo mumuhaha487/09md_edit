@@ -4,9 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const clearBtn = document.getElementById('clear-btn');
     const toast = document.getElementById('toast');
     const appConfig = {
-        imagePublicBaseUrl: '',
-        markdownSyncApiUrl: '',
-        markdownSyncApiHint: ''
+        imagePublicBaseUrl: 'https://image.0ha.top'
     };
 
     // Init marked options (optional)
@@ -115,11 +113,8 @@ lang: 'zh-CN'
     uploadBtn.addEventListener('click', async () => {
         const { fileName, finalContent } = buildMarkdownFile();
         try {
-            if (!appConfig.markdownSyncApiUrl) {
-                throw new Error(appConfig.markdownSyncApiHint || '未配置同步地址 MARKDOWN_SYNC_API_URL');
-            }
             showToast('正在上传到 Git 仓库... 🚀');
-            const response = await fetch(appConfig.markdownSyncApiUrl, {
+            const response = await fetch('/api/upload-markdown', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -268,12 +263,6 @@ lang: 'zh-CN'
             const data = await response.json();
             if (data && typeof data.imagePublicBaseUrl === 'string' && data.imagePublicBaseUrl.trim()) {
                 appConfig.imagePublicBaseUrl = data.imagePublicBaseUrl.replace(/\/+$/, '');
-            }
-            if (data && typeof data.markdownSyncApiUrl === 'string' && data.markdownSyncApiUrl.trim()) {
-                appConfig.markdownSyncApiUrl = data.markdownSyncApiUrl.trim();
-            }
-            if (data && typeof data.markdownSyncApiHint === 'string') {
-                appConfig.markdownSyncApiHint = data.markdownSyncApiHint.trim();
             }
         } catch (error) {
         }

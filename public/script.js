@@ -5,7 +5,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const toast = document.getElementById('toast');
     const appConfig = {
         imagePublicBaseUrl: '',
-        markdownSyncApiUrl: ''
+        markdownSyncApiUrl: '',
+        markdownSyncApiHint: ''
     };
 
     // Init marked options (optional)
@@ -115,7 +116,7 @@ lang: 'zh-CN'
         const { fileName, finalContent } = buildMarkdownFile();
         try {
             if (!appConfig.markdownSyncApiUrl) {
-                throw new Error('未配置同步地址 MARKDOWN_SYNC_API_URL');
+                throw new Error(appConfig.markdownSyncApiHint || '未配置同步地址 MARKDOWN_SYNC_API_URL');
             }
             showToast('正在上传到 Git 仓库... 🚀');
             const response = await fetch(appConfig.markdownSyncApiUrl, {
@@ -270,6 +271,9 @@ lang: 'zh-CN'
             }
             if (data && typeof data.markdownSyncApiUrl === 'string' && data.markdownSyncApiUrl.trim()) {
                 appConfig.markdownSyncApiUrl = data.markdownSyncApiUrl.trim();
+            }
+            if (data && typeof data.markdownSyncApiHint === 'string') {
+                appConfig.markdownSyncApiHint = data.markdownSyncApiHint.trim();
             }
         } catch (error) {
         }

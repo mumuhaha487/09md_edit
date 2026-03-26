@@ -4,8 +4,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const clearBtn = document.getElementById('clear-btn');
     const toast = document.getElementById('toast');
     const appConfig = {
-        imagePublicBaseUrl: 'https://image.0ha.top',
-        markdownSyncApiUrl: '/api/upload-markdown'
+        imagePublicBaseUrl: '',
+        markdownSyncApiUrl: ''
     };
 
     // Init marked options (optional)
@@ -114,6 +114,9 @@ lang: 'zh-CN'
     uploadBtn.addEventListener('click', async () => {
         const { fileName, finalContent } = buildMarkdownFile();
         try {
+            if (!appConfig.markdownSyncApiUrl) {
+                throw new Error('未配置同步地址 MARKDOWN_SYNC_API_URL');
+            }
             showToast('正在上传到 Git 仓库... 🚀');
             const response = await fetch(appConfig.markdownSyncApiUrl, {
                 method: 'POST',

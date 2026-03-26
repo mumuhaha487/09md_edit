@@ -1,6 +1,3 @@
-const DEFAULT_IMAGE_PUBLIC_BASE_URL = 'https://image.0ha.top';
-const DEFAULT_MARKDOWN_TARGET_DIR = '123';
-
 export function json(data, init = {}) {
   return new Response(JSON.stringify(data), {
     status: init.status || 200,
@@ -53,7 +50,7 @@ export function normalizeBaseUrl(value, fallback) {
   return normalized;
 }
 
-export function normalizeTargetDir(inputDir, fallback = DEFAULT_MARKDOWN_TARGET_DIR) {
+export function normalizeTargetDir(inputDir, fallback = '') {
   const normalized = String(inputDir || '')
     .replace(/\\/g, '/')
     .split('/')
@@ -75,8 +72,14 @@ export function safeMarkdownFileName(inputName) {
 }
 
 export function getPublicConfig(env) {
+  const imagePublicBaseUrl = normalizeBaseUrl(
+    requireEnv(env.IMAGE_BED_PUBLIC_BASE_URL, 'IMAGE_BED_PUBLIC_BASE_URL')
+  );
+  if (!imagePublicBaseUrl) {
+    throw createHttpError(500, '环境变量 IMAGE_BED_PUBLIC_BASE_URL 必须是有效的 http/https 地址');
+  }
   return {
-    imagePublicBaseUrl: normalizeBaseUrl(env.IMAGE_BED_PUBLIC_BASE_URL, DEFAULT_IMAGE_PUBLIC_BASE_URL)
+    imagePublicBaseUrl
   };
 }
 

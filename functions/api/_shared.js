@@ -36,61 +36,65 @@ export function safeMarkdownFileName(inputName) {
   return normalized.endsWith('.md') ? normalized : `${normalized}.md`;
 }
 
-export async function uploadMarkdownToCnb({
-  cnbApiBase,
+export async function uploadMarkdownToCnbRepo({
+  cnbGitApiBase,
   repo,
   token,
+  branch,
   filePath,
   content
 }) {
-  const bodyBytes = new TextEncoder().encode(content);
-  const uploadName = String(filePath || '').split('/').filter(Boolean).pop() || 'untitled.md';
+  const projectId = encodeURIComponent(repo);
+  const encodedFilePath = encodeURIComponent(filePath).replace(/%2F/g, '%2F');
+  const apiBase = cnbGitApiBase.replace(/\/+$/, '');
+  const fileApiUrl = `${apiBase}/projects/${projectId}/repository/files/${encodedFilePath}`;
+  const repoFileUrl = `https://cnb.cool/${repo}/-/blob/${encodeURIComponent(branch)}/${filePath}`;
   const headers = {
     Authorization: `Bearer ${token}`,
+    'PRIVATE-TOKEN': token,
     'Content-Type': 'application/json'
   };
 
-  const initResp = await fetch(`${cnbApiBase.replace(/\/+$/, '')}/${repo}/-/upload/files`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      name: uploadName,
-      size: bodyBytes.byteLength,
-      ext: {
-        type: 'markdown',
-        target_dir: filePath.includes('/') ? filePath.slice(0, filePath.lastIndexOf('/')) : ''
-      }
-    })
+  const checkResp = await fetch(`${fileApiUrl}?ref=${encodeURIComponent(branch)}`, {
+    method: 'GET',
+    headers
   });
 
-  if (!initResp.ok) {
-    const t = await initResp.text();
-    throw new Error(`初始化上传失败: ${t}`);
+  const commitMessage = `sync markdown: ${filePath}`;
+  const commitBody = {
+    branch,
+    content,
+    commit_message: commitMessage
+  };
+
+  if (checkResp.status === 404) {
+    const createResp = await fetch(fileApiUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(commitBody)
+    });
+    if (!createResp.ok) {
+      const t = await createResp.text();
+      throw new Error(`创建仓库文件失败: ${t}`);
+    }
+  } else if (checkResp.ok) {
+    const updateResp = await fetch(fileApiUrl, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(commitBody)
+    });
+    if (!updateResp.ok) {
+      const t = await updateResp.text();
+      throw new Error(`更新仓库文件失败: ${t}`);
+    }
+  } else {
+    const t = await checkResp.text();
+    throw new Error(`检查仓库文件失败: ${t}`);
   }
 
-  const initData = await initResp.json();
-  const uploadUrl = initData?.upload_url;
-  if (!uploadUrl) {
-    throw new Error('未获取到上传地址');
-  }
-
-  const putResp = await fetch(uploadUrl, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'text/markdown; charset=utf-8'
-    },
-    body: bodyBytes
-  });
-
-  if (!putResp.ok) {
-    const t = await putResp.text();
-    throw new Error(`流式上传失败: ${t}`);
-  }
-
-  const path = initData?.assets?.path || '';
-  const url = path ? (path.startsWith('http') ? path : `https://cnb.cool${path}`) : uploadUrl;
   return {
-    url,
-    path
+    url: repoFileUrl,
+    path: filePath,
+    branch
   };
 }

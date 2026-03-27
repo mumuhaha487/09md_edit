@@ -19,11 +19,9 @@ export const onRequestPost = async ({ request, env }) => {
       return json({ error: 'Markdown 内容缺失' }, { status: 400 });
     }
 
-    const cnbApiBase = String(env.CNB_API_BASE_URL || 'https://api.cnb.cool');
-    const repo = requireEnv(env.CNB_REPO, 'CNB_REPO');
-    const token = requireEnv(env.CNB_TOKEN, 'CNB_TOKEN');
-    const cnbGitUsername = String(env.CNB_GIT_USERNAME || '').trim();
-    const cnbBranch = String(env.CNB_BRANCH || '').trim();
+    const cnbApiBase = String(env.API_BASE_URL || 'https://api.cnb.cool');
+    const repo = requireEnv(env.REPO, 'REPO');
+    const token = requireEnv(env.TOKEN, 'TOKEN');
     const targetDir = normalizeTargetDir(env.MARKDOWN_TARGET_DIR || '123', '123');
     const fileName = safeMarkdownFileName(name);
     const filePath = `${targetDir}/${fileName}`;
@@ -33,9 +31,7 @@ export const onRequestPost = async ({ request, env }) => {
       repo,
       token,
       filePath,
-      content,
-      cnbGitUsername,
-      branch: cnbBranch
+      content
     });
 
     return json({

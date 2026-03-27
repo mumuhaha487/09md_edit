@@ -1,22 +1,15 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
+const fsSync = require('fs');
 const fs = require('fs/promises');
 const os = require('os');
 const { spawn } = require('child_process');
 
 const app = express();
 const port = 3000;
-const cnbGitUsername = process.env.CNB_GIT_USERNAME || 'mumuemhaha';
-const cnbRepo = process.env.CNB_REPO || 'mumuemhaha/test';
-const cnbToken = process.env.CNB_TOKEN || 'cOB6LW54nY56U168bLhFDmw27pC';
-const cnbRemoteUrl = process.env.CNB_REMOTE_URL || `https://cnb.cool/${cnbRepo}.git`;
-const cnbGitAuthorName = process.env.CNB_GIT_AUTHOR_NAME || cnbGitUsername;
-const cnbGitAuthorEmail = process.env.CNB_GIT_AUTHOR_EMAIL || `${cnbGitUsername}@users.noreply.cnb.cool`;
-const markdownTargetDir = process.env.MARKDOWN_TARGET_DIR || '123';
-const imageBedUploadUrl = process.env.IMAGE_BED_UPLOAD_URL || 'https://image.0ha.top/upload';
-const imageBedPublicBaseUrl = (process.env.IMAGE_BED_PUBLIC_BASE_URL || 'https://image.0ha.top').replace(/\/+$/, '');
-const imageBedToken = process.env.IMAGE_BED_TOKEN || 'imgbed_kLM2BsoFaqgCYfdd0GYwngAGulAVUBQY';
+
+loadEnvFile(path.join(__dirname, '.env'));
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
@@ -25,10 +18,104 @@ app.use(express.static('public'));
 app.use(express.json({ limit: '5mb' }));
 
 app.get('/api/config', (req, res) => {
-    return res.json({
-        imagePublicBaseUrl: imageBedPublicBaseUrl
-    });
+    try {
+        const { imageBedPublicBaseUrl } = getImageBedConfig();
+        return res.json({
+            imagePublicBaseUrl: imageBedPublicBaseUrl
+        });
+    } catch (error) {
+        return res.status(500).json({ error: error.message });
+    }
 });
+
+function loadEnvFile(filePath) {
+    if (!fsSync.existsSync(filePath)) {
+        return;
+    }
+    const content = fsSync.readFileSync(filePath, 'utf8');
+    const lines = content.split(/\r?\n/);
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) {
+            continue;
+        }
+        const index = trimmed.indexOf('=');
+        if (index <= 0) {
+            continue;
+        }
+        const key = trimmed.slice(0, index).trim();
+        let value = trimmed.slice(index + 1).trim();
+        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.slice(1, -1);
+        }
+        if (process.env[key] === undefined) {
+            process.env[key] = value;
+        }
+    }
+}
+
+function requireEnv(value, keyName) {
+    if (!value || !String(value).trim()) {
+        throw new Error(`缺少环境变量 ${keyName}`);
+    }
+    return String(value).trim();
+}
+
+function normalizeRepoName(inputRepo) {
+    const raw = String(inputRepo || '').trim();
+    if (!raw) {
+        return '';
+    }
+    return raw.endsWith('.git') ? raw.slice(0, -4) : raw;
+}
+
+function buildFileUrl({ baseUrl, repoName, branch, filePath }) {
+    let host = '';
+    try {
+        host = new URL(baseUrl).hostname.toLowerCase();
+    } catch (error) {
+        host = '';
+    }
+
+    const blobSegment = host === 'github.com' ? 'blob' : '-/blob';
+    return `${baseUrl}/${repoName}/${blobSegment}/${encodeURIComponent(branch)}/${filePath}`;
+}
+
+function getImageBedConfig() {
+    const imageBedUploadUrl = requireEnv(process.env.IMAGE_BED_UPLOAD_URL, 'IMAGE_BED_UPLOAD_URL');
+    const imageBedPublicBaseUrl = requireEnv(process.env.IMAGE_BED_PUBLIC_BASE_URL, 'IMAGE_BED_PUBLIC_BASE_URL').replace(/\/+$/, '');
+    const imageBedToken = requireEnv(process.env.IMAGE_BED_TOKEN, 'IMAGE_BED_TOKEN');
+    return {
+        imageBedUploadUrl,
+        imageBedPublicBaseUrl,
+        imageBedToken
+    };
+}
+
+function getGitConfig() {
+    const repo = normalizeRepoName(requireEnv(process.env.REPO, 'REPO'));
+    const gitUsername = requireEnv(process.env.GIT_USERNAME, 'GIT_USERNAME');
+    const token = requireEnv(process.env.TOKEN, 'TOKEN');
+    const gitBaseUrl = requireEnv(process.env.GIT_BASE_URL, 'GIT_BASE_URL').replace(/\/+$/, '');
+    const gitAuthorName = process.env.GIT_AUTHOR_NAME || gitUsername;
+    const gitAuthorEmail = process.env.GIT_AUTHOR_EMAIL || `${gitUsername}@users.noreply.cnb.cool`;
+    const rawTargetDir = requireEnv(process.env.MARKDOWN_TARGET_DIR, 'MARKDOWN_TARGET_DIR');
+    const normalizedTargetDir = normalizeTargetDir(rawTargetDir);
+    if (!normalizedTargetDir) {
+        throw new Error('MARKDOWN_TARGET_DIR 无效');
+    }
+
+    return {
+        repo,
+        gitUsername,
+        token,
+        gitBaseUrl,
+        gitAuthorName,
+        gitAuthorEmail,
+        markdownTargetDir: normalizedTargetDir,
+        remoteUrl: `${gitBaseUrl}/${repo}.git`
+    };
+}
 
 function runGit(args, cwd) {
     return new Promise((resolve, reject) => {
@@ -61,8 +148,8 @@ function runGit(args, cwd) {
     });
 }
 
-function getGitAuthArgs() {
-    const basicAuth = Buffer.from(`${cnbGitUsername}:${cnbToken}`).toString('base64');
+function getGitAuthArgs(gitUsername, token) {
+    const basicAuth = Buffer.from(`${gitUsername}:${token}`).toString('base64');
     return ['-c', `http.extraHeader=Authorization: Basic ${basicAuth}`];
 }
 
@@ -82,7 +169,7 @@ function normalizeTargetDir(inputDir) {
         .map((segment) => segment.trim())
         .filter((segment) => segment && segment !== '.' && segment !== '..');
     if (normalized.length === 0) {
-        return '123';
+        return '';
     }
     return normalized.join('/');
 }
@@ -114,6 +201,8 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
         if (!req.file) {
             return res.status(400).json({ error: 'No file uploaded' });
         }
+
+        const { imageBedUploadUrl, imageBedToken } = getImageBedConfig();
 
         // Use built-in FormData and Blob for Node 18+
         const formData = new FormData();
@@ -154,11 +243,22 @@ app.post('/api/upload-markdown', async (req, res) => {
             return res.status(400).json({ error: 'Markdown 内容缺失' });
         }
 
+        const {
+            repo,
+            gitUsername,
+            token,
+            gitBaseUrl,
+            gitAuthorName,
+            gitAuthorEmail,
+            markdownTargetDir,
+            remoteUrl
+        } = getGitConfig();
+
         const fileName = safeMarkdownFileName(name);
         tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'md-sync-'));
         const repoDir = path.join(tempRoot, 'repo');
-        const authArgs = getGitAuthArgs();
-        await runGit([...authArgs, 'clone', '--depth', '1', cnbRemoteUrl, repoDir], process.cwd());
+        const authArgs = getGitAuthArgs(gitUsername, token);
+        await runGit([...authArgs, 'clone', '--depth', '1', remoteUrl, repoDir], process.cwd());
 
         let branch = 'main';
         try {
@@ -172,12 +272,11 @@ app.post('/api/upload-markdown', async (req, res) => {
             branch = localBranch.stdout.trim() || 'main';
         }
 
-        const normalizedTargetDir = normalizeTargetDir(markdownTargetDir);
-        const targetDir = await ensureDirectoryTree(repoDir, normalizedTargetDir);
-        const relativeFilePath = path.posix.join(normalizedTargetDir, fileName);
+        const targetDir = await ensureDirectoryTree(repoDir, markdownTargetDir);
+        const relativeFilePath = path.posix.join(markdownTargetDir, fileName);
         await fs.writeFile(path.join(targetDir, fileName), content, 'utf8');
-        await runGit(['config', 'user.name', cnbGitAuthorName], repoDir);
-        await runGit(['config', 'user.email', cnbGitAuthorEmail], repoDir);
+        await runGit(['config', 'user.name', gitAuthorName], repoDir);
+        await runGit(['config', 'user.email', gitAuthorEmail], repoDir);
         await runGit(['config', 'commit.gpgsign', 'false'], repoDir);
         await runGit(['add', '--', relativeFilePath], repoDir);
 
@@ -194,7 +293,12 @@ app.post('/api/upload-markdown', async (req, res) => {
             await runGit([...authArgs, 'push', 'origin', `HEAD:${branch}`], repoDir);
         }
 
-        const fileUrl = `https://cnb.cool/${cnbRepo}/-/blob/${encodeURIComponent(branch)}/${relativeFilePath}`;
+        const fileUrl = buildFileUrl({
+            baseUrl: gitBaseUrl,
+            repoName: repo,
+            branch,
+            filePath: relativeFilePath
+        });
 
         return res.json({
             url: fileUrl,

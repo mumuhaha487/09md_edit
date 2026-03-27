@@ -29,11 +29,11 @@ Python 调用项目：
 
 **示例 .env**
 ```dotenv
-IMAGE_BED_UPLOAD_URL=https://image.vmss.cn/upload
+IMAGE_BED_UPLOAD_URL=https://image.YOU_URL/upload
 IMAGE_BED_PUBLIC_BASE_URL=https://image.vmss.cn
 IMAGE_BED_TOKEN=imgbed_xxx
-REPO=mumuemhaha/test
-GIT_USERNAME=mumuemhaha
+REPO=123/321
+GIT_USERNAME=YOUNAME
 TOKEN=your_token
 GIT_BASE_URL=https://cnb.cool
 MARKDOWN_TARGET_DIR=docs
